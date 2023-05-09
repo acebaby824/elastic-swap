@@ -270,4 +270,76 @@ contract Exchange is ERC20, ReentrancyGuard {
         );
     }
 
-   
+    /**
+     * @notice swaps base tokens for a minimum amount of quote tokens.  Fees are included in all transactions.
+     * The exchange must be granted approvals for the base token by the caller.
+     * @param _baseTokenQty qty of base tokens to swap
+     * @param _minQuoteTokenQty minimum qty of quote tokens to receive in exchange for
+     * your base tokens (or the transaction will revert)
+     * @param _expirationTimestamp timestamp that this transaction must occur before (or transaction will revert)
+     */
+    function swapBaseTokenForQuoteToken(
+        uint256 _baseTokenQty,
+        uint256 _minQuoteTokenQty,
+        uint256 _expirationTimestamp
+    ) external nonReentrant() isNotExpired(_expirationTimestamp) {
+        require(
+            _baseTokenQty != 0 && _minQuoteTokenQty != 0,
+            "Exchange: INSUFFICIENT_TOKEN_QTY"
+        );
+
+        uint256 quoteTokenQty =
+            MathLib.calculateQuoteTokenQty(
+                _baseTokenQty,
+                _minQuoteTokenQty,
+                TOTAL_LIQUIDITY_FEE,
+                internalBalances
+            );
+
+        IERC20(baseToken).safeTransferFrom(
+            msg.sender,
+            address(this),
+            _baseTokenQty
+        );
+
+        IERC20(quoteToken).safeTransfer(msg.sender, quoteTokenQty);
+        emit Swap(msg.sender, _baseTokenQty, 0, 0, quoteTokenQty);
+    }
+
+    /**
+     * @notice swaps quote tokens for a minimum amount of base tokens.  Fees are included in all transactions.
+     * The exchange must be granted approvals for the quote token by the caller.
+     * @param _quoteTokenQty qty of quote tokens to swap
+     * @param _minBaseTokenQty minimum qty of base tokens to receive in exchange for
+     * your quote tokens (or the transaction will revert)
+     * @param _expirationTimestamp timestamp that this transaction must occur before (or transaction will revert)
+     */
+    function swapQuoteTokenForBaseToken(
+        uint256 _quoteTokenQty,
+        uint256 _minBaseTokenQty,
+        uint256 _expirationTimestamp
+    ) external nonReentrant() isNotExpired(_expirationTimestamp) {
+        require(
+            _quoteTokenQty != 0 && _minBaseTokenQty != 0,
+            "Exchange: INSUFFICIENT_TOKEN_QTY"
+        );
+
+        uint256 baseTokenQty =
+            MathLib.calculateBaseTokenQty(
+                _quoteTokenQty,
+                _minBaseTokenQty,
+                IERC20(baseToken).balanceOf(address(this)),
+                TOTAL_LIQUIDITY_FEE,
+                internalBalances
+            );
+
+        IERC20(quoteToken).safeTransferFrom(
+            msg.sender,
+            address(this),
+            _quoteTokenQty
+        );
+
+        IERC20(baseToken).safeTransfer(msg.sender, baseTokenQty);
+        emit Swap(msg.sender, 0, _quoteTokenQty, baseTokenQty, 0);
+    }
+}
